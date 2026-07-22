@@ -1,6 +1,6 @@
-import { LEVELS, OPERATIONS, describeSkill } from "./question-engine.js?v=7";
-import { createQuestionPool, getQuestionPoolSize } from "./question-pool.js?v=7";
-import { createChoiceOrders, getWinners, rankPlayers } from "./race-rules.js?v=7";
+import { LEVELS, OPERATIONS, describeSkill } from "./question-engine.js?v=8";
+import { createQuestionPool, getQuestionPoolSize } from "./question-pool.js?v=8";
+import { createChoiceOrders, getWinners, rankPlayers } from "./race-rules.js?v=8";
 
 const PLAYER_STYLES = [
   { avatar: "🦊", color: "#ff916d", defaultName: "จิ้งจอก" },
@@ -46,6 +46,9 @@ const state = {
 const app = document.querySelector("#app");
 const soundButton = document.querySelector("#sound-button");
 const homeButton = document.querySelector("#home-button");
+const sessionControls = document.querySelector("#session-controls");
+const gameBackButton = document.querySelector("#game-back-button");
+const gameRestartButton = document.querySelector("#game-restart-button");
 let audioContext;
 let audioUnlocked = false;
 
@@ -97,6 +100,10 @@ function updateSoundButton() {
     <span aria-hidden="true">${state.soundOn ? "🔊" : "🔇"}</span>
     <span class="sound-label">${state.soundOn ? "เปิดเสียง" : "ปิดเสียง"}</span>
   `;
+}
+
+function updateSessionControls() {
+  sessionControls.hidden = state.screen !== "countdown" && state.screen !== "game";
 }
 
 async function ensureAudioReady() {
@@ -151,6 +158,7 @@ async function playTone(kind) {
 
 function render() {
   updateSoundButton();
+  updateSessionControls();
   if (state.screen === "countdown") renderCountdown();
   else if (state.screen === "game") renderGame();
   else if (state.screen === "results") renderResults();
@@ -158,6 +166,7 @@ function render() {
 }
 
 function renderSetup() {
+  updateSessionControls();
   document.title = "Math Race Junior — ตั้งค่าเกม";
   const { playerCount, operation, level, duration } = state.setup;
   const modeText = playerCount === 1 ? "ฝึกคนเดียว" : `แข่งพร้อมกัน ${playerCount} คน`;
@@ -339,6 +348,7 @@ function startGame() {
 }
 
 function renderCountdown() {
+  updateSessionControls();
   document.title = "Math Race Junior — เตรียมตัว";
   app.innerHTML = `
     <div class="page countdown-page">
@@ -384,11 +394,11 @@ function updateClock() {
   state.timeLeftMs = Math.max(0, state.endTime - performance.now());
   const seconds = Math.ceil(state.timeLeftMs / 1000);
   const progress = (state.timeLeftMs / (state.setup.duration * 1000)) * 100;
-  const timerValue = document.querySelector("#timer-seconds");
-  const timerBar = document.querySelector(".timer-fill");
+  const timerValues = document.querySelectorAll(".timer-seconds");
+  const timerBars = document.querySelectorAll(".timer-fill");
   const gamePage = document.querySelector(".simultaneous-game");
-  if (timerValue) timerValue.textContent = String(seconds);
-  if (timerBar) timerBar.style.width = `${progress}%`;
+  timerValues.forEach((timerValue) => { timerValue.textContent = String(seconds); });
+  timerBars.forEach((timerBar) => { timerBar.style.width = `${progress}%`; });
   if (gamePage) {
     gamePage.classList.toggle("is-time-critical", state.timeLeftMs <= 10_000);
     gamePage.classList.toggle("is-time-urgent", state.timeLeftMs <= 5_000);
@@ -407,35 +417,41 @@ function panelStatus(index) {
 function renderAnswerPanel(player, playerIndex) {
   const isLocked = state.lockedPlayers.has(playerIndex);
   const choices = state.choiceOrders[playerIndex];
+  const isOppositeFacing = state.players.length === 2
+    ? playerIndex === 0
+    : state.players.length > 2 && playerIndex < 2;
   return `
-    <section class="answer-panel ${isLocked ? "is-locked" : ""} ${state.winnerPlayerIndex === playerIndex ? "is-winner" : ""}"
+    <section class="answer-panel ${isOppositeFacing ? "is-opposite-facing" : ""} ${isLocked ? "is-locked" : ""} ${state.winnerPlayerIndex === playerIndex ? "is-winner" : ""}"
       style="--player-color: ${player.color}" aria-labelledby="player-${playerIndex}-name">
-      <header class="panel-header">
-        <div class="panel-player">
-          <span aria-hidden="true">${player.avatar}</span>
-          <strong id="player-${playerIndex}-name">${escapeHtml(player.name)}</strong>
+      <div class="panel-facing-content">
+        <header class="panel-header">
+          <div class="panel-player">
+            <span aria-hidden="true">${player.avatar}</span>
+            <strong id="player-${playerIndex}-name">${escapeHtml(player.name)}</strong>
+          </div>
+          <div class="panel-meta">
+            <b class="panel-score">⭐ ${player.score}</b>
+            <span class="panel-status">${panelStatus(playerIndex)}</span>
+          </div>
+        </header>
+        <div class="panel-answers">
+          ${choices.map((choice) => {
+            const revealCorrect = state.resolved && choice === state.currentQuestion.answer;
+            return `
+              <button class="panel-answer ${revealCorrect ? "is-correct" : ""}" type="button"
+                data-player="${playerIndex}" data-answer="${choice}"
+                ${state.resolved || isLocked ? "disabled" : ""}
+                aria-label="${escapeHtml(player.name)} ตอบ ${choice}">${choice}</button>
+            `;
+          }).join("")}
         </div>
-        <div class="panel-meta">
-          <b class="panel-score">⭐ ${player.score}</b>
-          <span class="panel-status">${panelStatus(playerIndex)}</span>
-        </div>
-      </header>
-      <div class="panel-answers">
-        ${choices.map((choice) => {
-          const revealCorrect = state.resolved && choice === state.currentQuestion.answer;
-          return `
-            <button class="panel-answer ${revealCorrect ? "is-correct" : ""}" type="button"
-              data-player="${playerIndex}" data-answer="${choice}"
-              ${state.resolved || isLocked ? "disabled" : ""}
-              aria-label="${escapeHtml(player.name)} ตอบ ${choice}">${choice}</button>
-          `;
-        }).join("")}
       </div>
     </section>
   `;
 }
 
 function renderGame() {
+  updateSessionControls();
   document.title = "Math Race Junior — แข่งพร้อมกัน";
   const seconds = Math.ceil(state.timeLeftMs / 1000);
   const progress = (state.timeLeftMs / (state.setup.duration * 1000)) * 100;
@@ -448,15 +464,16 @@ function renderGame() {
     <div class="page simultaneous-game ${timeClass}">
       <section class="battle-board player-count-${state.players.length}">
         <section class="arena-top" aria-labelledby="shared-question">
-          <div class="timer-box" aria-label="เวลาที่เหลือ">
-            <span id="timer-seconds">${seconds}</span><small>วินาที</small>
-            <div class="timer-track" aria-hidden="true"><div class="timer-fill" style="width: ${progress}%"></div></div>
+          <div class="question-face question-face-opposite" aria-hidden="true">
+            <div class="question-meta"><span>ข้อ ${state.questionNumber}</span><b><span class="timer-seconds">${seconds}</span> วิ</b></div>
+            <h1>${state.currentQuestion.prompt} = ?</h1>
           </div>
-          <div class="shared-question">
-            <span>ข้อ ${state.questionNumber} • คลัง ${state.questionPool.size.toLocaleString("th-TH")}</span>
+          <div class="arena-rule"><span aria-hidden="true">⚡</span><strong>ถูกคนแรก +1</strong></div>
+          <div class="timer-track" aria-hidden="true"><div class="timer-fill" style="width: ${progress}%"></div></div>
+          <div class="question-face question-face-near">
+            <div class="question-meta"><span>ข้อ ${state.questionNumber}</span><b><span class="timer-seconds">${seconds}</span> วิ</b></div>
             <h1 id="shared-question">${state.currentQuestion.prompt} = ?</h1>
           </div>
-          <div class="speed-rule"><span aria-hidden="true">⚡</span><strong>ถูกคนแรก +1</strong></div>
         </section>
 
         <div class="answer-panels player-count-${state.players.length}">
@@ -520,6 +537,7 @@ function finishGame() {
 }
 
 function renderResults() {
+  updateSessionControls();
   document.title = "Math Race Junior — สรุปผล";
   const ranking = rankPlayers(state.players);
   const winners = getWinners(state.players);
@@ -574,6 +592,62 @@ function goHome() {
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
+function askConfirmation({ title, message, confirmLabel }) {
+  return new Promise((resolve) => {
+    document.querySelector(".confirm-overlay")?.remove();
+    const overlay = document.createElement("div");
+    overlay.className = "confirm-overlay";
+    overlay.innerHTML = `
+      <section class="confirm-card" role="dialog" aria-modal="true" aria-labelledby="confirm-title" aria-describedby="confirm-message">
+        <div class="confirm-icon" aria-hidden="true">?</div>
+        <h2 id="confirm-title">${title}</h2>
+        <p id="confirm-message">${message}</p>
+        <div class="confirm-actions">
+          <button class="secondary-button" data-confirm-cancel type="button">เล่นต่อ</button>
+          <button class="primary-button" data-confirm-accept type="button">${confirmLabel}</button>
+        </div>
+      </section>
+    `;
+
+    const finish = (accepted) => {
+      document.removeEventListener("keydown", handleKeydown);
+      overlay.remove();
+      resolve(accepted);
+    };
+    const handleKeydown = (event) => {
+      if (event.key === "Escape") finish(false);
+    };
+
+    overlay.querySelector("[data-confirm-cancel]").addEventListener("click", () => finish(false));
+    overlay.querySelector("[data-confirm-accept]").addEventListener("click", () => finish(true));
+    overlay.addEventListener("click", (event) => {
+      if (event.target === overlay) finish(false);
+    });
+    document.addEventListener("keydown", handleKeydown);
+    document.body.append(overlay);
+    overlay.querySelector("[data-confirm-cancel]").focus();
+  });
+}
+
+async function requestGoHome() {
+  const isActiveGame = state.screen === "countdown" || state.screen === "game";
+  if (isActiveGame && !await askConfirmation({
+    title: "ย้อนกลับไปตั้งค่า?",
+    message: "การแข่งขันรอบนี้จะหยุด แต่ชื่อและระดับโจทย์ที่เลือกไว้จะยังอยู่",
+    confirmLabel: "ย้อนกลับ"
+  })) return;
+  goHome();
+}
+
+async function requestRestart() {
+  if (!await askConfirmation({
+    title: "เริ่มรอบใหม่?",
+    message: "คะแนนและจำนวนข้อของรอบนี้จะเริ่มนับใหม่ตั้งแต่ศูนย์",
+    confirmLabel: "เริ่มใหม่"
+  })) return;
+  startGame();
+}
+
 soundButton.addEventListener("click", () => {
   state.soundOn = !state.soundOn;
   writeStorage("math-race-sound", state.soundOn ? "on" : "off");
@@ -581,11 +655,9 @@ soundButton.addEventListener("click", () => {
   if (state.soundOn) void playTone("success");
 });
 
-homeButton.addEventListener("click", () => {
-  const isActiveGame = state.screen === "countdown" || state.screen === "game";
-  if (isActiveGame && !window.confirm("ออกจากการแข่งขันรอบนี้และกลับหน้าแรกหรือไม่?")) return;
-  goHome();
-});
+homeButton.addEventListener("click", () => void requestGoHome());
+gameBackButton.addEventListener("click", () => void requestGoHome());
+gameRestartButton.addEventListener("click", () => void requestRestart());
 
 document.addEventListener("visibilitychange", () => {
   if (!document.hidden && state.screen === "game") updateClock();

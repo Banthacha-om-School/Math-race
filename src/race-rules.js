@@ -1,4 +1,4 @@
-import { shuffle } from "./question-engine.js?v=7";
+import { shuffle } from "./question-engine.js?v=8";
 
 export function createChoiceOrders(choices, playerCount, rng = Math.random) {
   if (!Array.isArray(choices) || choices.length !== 4 || new Set(choices).size !== 4) {

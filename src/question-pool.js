@@ -1,4 +1,4 @@
-import { createQuestionFromSpec, enumerateQuestionSpecs, shuffle } from "./question-engine.js?v=7";
+import { createQuestionFromSpec, enumerateQuestionSpecs, shuffle } from "./question-engine.js?v=8";
 
 const poolSizeCache = new Map();
 
