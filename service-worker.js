@@ -1,12 +1,12 @@
-const CACHE_NAME = "math-race-junior-v6";
+const CACHE_NAME = "math-race-junior-v7";
 const APP_SHELL = [
   "./",
   "./index.html",
-  "./styles.css?v=6",
-  "./src/app.js?v=6",
-  "./src/question-engine.js?v=6",
-  "./src/question-pool.js?v=6",
-  "./src/race-rules.js?v=6",
+  "./styles.css?v=7",
+  "./src/app.js?v=7",
+  "./src/question-engine.js?v=7",
+  "./src/question-pool.js?v=7",
+  "./src/race-rules.js?v=7",
   "./manifest.webmanifest",
   "./assets/icon.svg"
 ];

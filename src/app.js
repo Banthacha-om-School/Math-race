@@ -1,6 +1,6 @@
-import { LEVELS, OPERATIONS, describeSkill } from "./question-engine.js?v=6";
-import { createQuestionPool, getQuestionPoolSize } from "./question-pool.js?v=6";
-import { createChoiceOrders, getWinners, rankPlayers } from "./race-rules.js?v=6";
+import { LEVELS, OPERATIONS, describeSkill } from "./question-engine.js?v=7";
+import { createQuestionPool, getQuestionPoolSize } from "./question-pool.js?v=7";
+import { createChoiceOrders, getWinners, rankPlayers } from "./race-rules.js?v=7";
 
 const PLAYER_STYLES = [
   { avatar: "🦊", color: "#ff916d", defaultName: "จิ้งจอก" },
@@ -47,6 +47,7 @@ const app = document.querySelector("#app");
 const soundButton = document.querySelector("#sound-button");
 const homeButton = document.querySelector("#home-button");
 let audioContext;
+let audioUnlocked = false;
 
 function readStorage(key) {
   try {
@@ -98,28 +99,54 @@ function updateSoundButton() {
   `;
 }
 
-function playTone(kind) {
-  if (!state.soundOn) return;
+async function ensureAudioReady() {
+  if (!state.soundOn) return null;
   const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-  if (!AudioContextClass) return;
+  if (!AudioContextClass) return null;
 
   audioContext ??= new AudioContextClass();
-  if (audioContext.state === "suspended") audioContext.resume();
+  try {
+    if (audioContext.state === "suspended") await audioContext.resume();
+  } catch {
+    return null;
+  }
 
-  const oscillator = audioContext.createOscillator();
-  const gain = audioContext.createGain();
-  const now = audioContext.currentTime;
-  const isSuccess = kind === "success";
+  if (!audioUnlocked) {
+    const silentBuffer = audioContext.createBuffer(1, 1, audioContext.sampleRate);
+    const source = audioContext.createBufferSource();
+    source.buffer = silentBuffer;
+    source.connect(audioContext.destination);
+    source.start(0);
+    audioUnlocked = true;
+  }
 
-  oscillator.type = isSuccess ? "sine" : "triangle";
-  oscillator.frequency.setValueAtTime(isSuccess ? 520 : 230, now);
-  oscillator.frequency.exponentialRampToValueAtTime(isSuccess ? 780 : 165, now + 0.16);
+  return audioContext;
+}
+
+async function playTone(kind) {
+  const context = await ensureAudioReady();
+  if (!context) return;
+
+  const tone = {
+    success: { start: 540, end: 820, duration: 0.22, type: "sine" },
+    wrong: { start: 240, end: 145, duration: 0.25, type: "triangle" },
+    tick: { start: 380, end: 440, duration: 0.09, type: "sine" },
+    go: { start: 620, end: 980, duration: 0.25, type: "sine" }
+  }[kind] ?? { start: 440, end: 520, duration: 0.14, type: "sine" };
+
+  const oscillator = context.createOscillator();
+  const gain = context.createGain();
+  const now = context.currentTime;
+
+  oscillator.type = tone.type;
+  oscillator.frequency.setValueAtTime(tone.start, now);
+  oscillator.frequency.exponentialRampToValueAtTime(tone.end, now + tone.duration * 0.75);
   gain.gain.setValueAtTime(0.0001, now);
   gain.gain.exponentialRampToValueAtTime(0.13, now + 0.015);
-  gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.22);
-  oscillator.connect(gain).connect(audioContext.destination);
+  gain.gain.exponentialRampToValueAtTime(0.0001, now + tone.duration);
+  oscillator.connect(gain).connect(context.destination);
   oscillator.start(now);
-  oscillator.stop(now + 0.23);
+  oscillator.stop(now + tone.duration + 0.01);
 }
 
 function render() {
@@ -275,6 +302,7 @@ function bindSetupEvents() {
 function startGame() {
   captureNames();
   clearGameTimers();
+  void playTone("tick");
   const { playerCount, names } = state.setup;
   state.players = PLAYER_STYLES.slice(0, playerCount).map((style, index) => ({
     ...style,
@@ -303,6 +331,7 @@ function startGame() {
       state.countdownTimer = null;
       beginTimedGame();
     } else {
+      void playTone("tick");
       renderCountdown();
     }
   }, 1000);
@@ -328,6 +357,7 @@ function renderCountdown() {
 function beginTimedGame() {
   state.screen = "game";
   state.endTime = performance.now() + state.setup.duration * 1000;
+  void playTone("go");
   prepareQuestion();
   state.clockTimer = window.setInterval(updateClock, 100);
 }
@@ -356,19 +386,14 @@ function updateClock() {
   const progress = (state.timeLeftMs / (state.setup.duration * 1000)) * 100;
   const timerValue = document.querySelector("#timer-seconds");
   const timerBar = document.querySelector(".timer-fill");
+  const gamePage = document.querySelector(".simultaneous-game");
   if (timerValue) timerValue.textContent = String(seconds);
   if (timerBar) timerBar.style.width = `${progress}%`;
+  if (gamePage) {
+    gamePage.classList.toggle("is-time-critical", state.timeLeftMs <= 10_000);
+    gamePage.classList.toggle("is-time-urgent", state.timeLeftMs <= 5_000);
+  }
   if (state.timeLeftMs <= 0) finishGame();
-}
-
-function renderScoreStrip() {
-  return state.players.map((player, index) => `
-    <div class="live-score ${state.winnerPlayerIndex === index ? "just-scored" : ""}" style="--player-color: ${player.color}">
-      <span aria-hidden="true">${player.avatar}</span>
-      <strong>${escapeHtml(player.name)}</strong>
-      <b>⭐ ${player.score}</b>
-    </div>
-  `).join("");
 }
 
 function panelStatus(index) {
@@ -390,7 +415,10 @@ function renderAnswerPanel(player, playerIndex) {
           <span aria-hidden="true">${player.avatar}</span>
           <strong id="player-${playerIndex}-name">${escapeHtml(player.name)}</strong>
         </div>
-        <span class="panel-status">${panelStatus(playerIndex)}</span>
+        <div class="panel-meta">
+          <b class="panel-score">⭐ ${player.score}</b>
+          <span class="panel-status">${panelStatus(playerIndex)}</span>
+        </div>
       </header>
       <div class="panel-answers">
         ${choices.map((choice) => {
@@ -412,25 +440,29 @@ function renderGame() {
   const seconds = Math.ceil(state.timeLeftMs / 1000);
   const progress = (state.timeLeftMs / (state.setup.duration * 1000)) * 100;
 
+  const timeClass = state.timeLeftMs <= 5_000
+    ? "is-time-critical is-time-urgent"
+    : state.timeLeftMs <= 10_000 ? "is-time-critical" : "";
+
   app.innerHTML = `
-    <div class="page simultaneous-game">
-      <section class="arena-top" aria-labelledby="shared-question">
-        <div class="timer-box" aria-label="เวลาที่เหลือ">
-          <span id="timer-seconds">${seconds}</span><small>วินาที</small>
-          <div class="timer-track" aria-hidden="true"><div class="timer-fill" style="width: ${progress}%"></div></div>
+    <div class="page simultaneous-game ${timeClass}">
+      <section class="battle-board player-count-${state.players.length}">
+        <section class="arena-top" aria-labelledby="shared-question">
+          <div class="timer-box" aria-label="เวลาที่เหลือ">
+            <span id="timer-seconds">${seconds}</span><small>วินาที</small>
+            <div class="timer-track" aria-hidden="true"><div class="timer-fill" style="width: ${progress}%"></div></div>
+          </div>
+          <div class="shared-question">
+            <span>ข้อ ${state.questionNumber} • คลัง ${state.questionPool.size.toLocaleString("th-TH")}</span>
+            <h1 id="shared-question">${state.currentQuestion.prompt} = ?</h1>
+          </div>
+          <div class="speed-rule"><span aria-hidden="true">⚡</span><strong>ถูกคนแรก +1</strong></div>
+        </section>
+
+        <div class="answer-panels player-count-${state.players.length}">
+          ${state.players.map((player, index) => renderAnswerPanel(player, index)).join("")}
         </div>
-        <div class="shared-question">
-          <span>ข้อ ${state.questionNumber} • ${describeSkill(state.setup.operation, state.setup.level)} • คลัง ${state.questionPool.size.toLocaleString("th-TH")} แบบ</span>
-          <h1 id="shared-question">${state.currentQuestion.prompt} = ?</h1>
-        </div>
-        <div class="speed-rule"><span aria-hidden="true">⚡</span><strong>ถูกคนแรก</strong><small>ได้ 1 คะแนน</small></div>
       </section>
-
-      <div class="live-scores">${renderScoreStrip()}</div>
-
-      <div class="answer-panels player-count-${state.players.length}">
-        ${state.players.map((player, index) => renderAnswerPanel(player, index)).join("")}
-      </div>
     </div>
   `;
 
@@ -459,7 +491,7 @@ function answerQuestion(playerIndex, answer) {
     player.correct += 1;
     player.totalResponseMs += responseMs;
     player.fastestMs = Math.min(player.fastestMs, responseMs);
-    playTone("success");
+    void playTone("success");
     renderGame();
     state.transitionTimer = window.setTimeout(prepareQuestion, 650);
     return;
@@ -467,7 +499,7 @@ function answerQuestion(playerIndex, answer) {
 
   player.wrong += 1;
   state.lockedPlayers.add(playerIndex);
-  playTone("wrong");
+  void playTone("wrong");
   if (state.lockedPlayers.size === state.players.length) {
     state.resolved = true;
     renderGame();
@@ -483,7 +515,7 @@ function finishGame() {
   state.timeLeftMs = 0;
   state.screen = "results";
   renderResults();
-  playTone("success");
+  void playTone("success");
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
@@ -546,7 +578,7 @@ soundButton.addEventListener("click", () => {
   state.soundOn = !state.soundOn;
   writeStorage("math-race-sound", state.soundOn ? "on" : "off");
   updateSoundButton();
-  if (state.soundOn) playTone("success");
+  if (state.soundOn) void playTone("success");
 });
 
 homeButton.addEventListener("click", () => {
