@@ -1,0 +1,15 @@
+{
+  "name": "math-race-junior",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "เกมคณิตศาสตร์แบบผลัดกันเล่นสำหรับเด็ก ป.1–ป.2 บน iPad เครื่องเดียว",
+  "scripts": {
+    "start": "node scripts/dev-server.mjs",
+    "test": "node --test",
+    "check": "node --check src/question-engine.js && node --check src/app.js && node --check service-worker.js && node --check scripts/dev-server.mjs && node --test"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

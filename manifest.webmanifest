@@ -1,0 +1,19 @@
+{
+  "name": "Math Race Junior",
+  "short_name": "Math Race",
+  "description": "เกมคณิตศาสตร์แบบผลัดกันเล่นสำหรับเด็ก ป.1–ป.2",
+  "lang": "th",
+  "start_url": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#f7f6ff",
+  "theme_color": "#635bff",
+  "icons": [
+    {
+      "src": "./assets/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

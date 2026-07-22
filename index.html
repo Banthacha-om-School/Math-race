@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="th">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#635bff" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Math Race" />
+    <meta name="description" content="เกมฝึกบวกและลบสำหรับเด็ก ป.1–ป.2 เล่นแข่งกันได้สูงสุด 4 คนบน iPad เครื่องเดียว" />
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="icon" href="./assets/icon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="./styles.css" />
+    <title>Math Race Junior</title>
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="app-header" aria-label="Math Race Junior">
+        <button class="brand" id="home-button" type="button" aria-label="กลับหน้าเริ่มต้น">
+          <span class="brand-mark" aria-hidden="true">★</span>
+          <span>
+            <strong>Math Race</strong>
+            <small>Junior</small>
+          </span>
+        </button>
+        <button class="icon-button" id="sound-button" type="button" aria-pressed="true">
+          <span aria-hidden="true">🔊</span>
+          <span class="sound-label">เปิดเสียง</span>
+        </button>
+      </header>
+
+      <main id="app" tabindex="-1"></main>
+    </div>
+
+    <noscript>เกมนี้ต้องเปิด JavaScript ในเบราว์เซอร์ก่อนจึงจะเล่นได้</noscript>
+    <script type="module" src="./src/app.js"></script>
+  </body>
+</html>
