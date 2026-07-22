@@ -1,10 +1,12 @@
-const CACHE_NAME = "math-race-junior-v1";
+const CACHE_NAME = "math-race-junior-v6";
 const APP_SHELL = [
   "./",
   "./index.html",
-  "./styles.css",
-  "./src/app.js",
-  "./src/question-engine.js",
+  "./styles.css?v=6",
+  "./src/app.js?v=6",
+  "./src/question-engine.js?v=6",
+  "./src/question-pool.js?v=6",
+  "./src/race-rules.js?v=6",
   "./manifest.webmanifest",
   "./assets/icon.svg"
 ];
@@ -25,10 +27,12 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
   event.respondWith(
-    caches.match(event.request).then((cached) => cached || fetch(event.request).then((response) => {
-      const copy = response.clone();
-      caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
-      return response;
-    }))
+    fetch(event.request)
+      .then((response) => {
+        const copy = response.clone();
+        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
+        return response;
+      })
+      .catch(() => caches.match(event.request))
   );
 });

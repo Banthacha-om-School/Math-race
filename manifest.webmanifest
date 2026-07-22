@@ -1,7 +1,7 @@
 {
   "name": "Math Race Junior",
   "short_name": "Math Race",
-  "description": "เกมคณิตศาสตร์แบบผลัดกันเล่นสำหรับเด็ก ป.1–ป.2",
+  "description": "เกมคณิตศาสตร์แบบแข่งขันพร้อมกันสำหรับเด็ก ป.1–ป.2",
   "lang": "th",
   "start_url": "./",
   "display": "standalone",

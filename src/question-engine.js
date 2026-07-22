@@ -141,13 +141,100 @@ export function shuffle(values, rng = Math.random) {
   return result;
 }
 
-export function generateQuestion({ operation = "addition", level = "within10", rng = Math.random } = {}) {
+function validateConfiguration(operation, level) {
   if (!OPERATIONS[operation]) {
     throw new Error(`Unknown operation: ${operation}`);
   }
   if (!LEVELS[level]) {
     throw new Error(`Unknown level: ${level}`);
   }
+}
+
+function isValidSpec(operation, level, left, right) {
+  if (level === "within10" || level === "within20") {
+    const max = LEVELS[level].maxAnswer;
+    if (left < 0 || right < 0 || left > max || right > max) return false;
+    return operation === "addition"
+      ? left + right <= max
+      : left >= right;
+  }
+
+  if (left < 10 || right < 10 || left > 99 || right > 99) return false;
+
+  if (operation === "addition") {
+    const onesTotal = (left % 10) + (right % 10);
+    const hasRegroup = onesTotal >= 10;
+    return left + right <= 99 && (level === "twoDigitRegroup" ? hasRegroup : !hasRegroup);
+  }
+
+  const hasBorrow = left % 10 < right % 10;
+  return left > right && (level === "twoDigitRegroup" ? hasBorrow : !hasBorrow);
+}
+
+export function enumerateQuestionSpecs({ operation = "addition", level = "within10" } = {}) {
+  validateConfiguration(operation, level);
+  const operations = operation === "mixed" ? ["addition", "subtraction"] : [operation];
+  const isTwoDigit = level === "twoDigitNoRegroup" || level === "twoDigitRegroup";
+  const minOperand = isTwoDigit ? 10 : 0;
+  const maxOperand = isTwoDigit ? 99 : LEVELS[level].maxAnswer;
+  const specs = [];
+
+  for (const actualOperation of operations) {
+    for (let left = minOperand; left <= maxOperand; left += 1) {
+      for (let right = minOperand; right <= maxOperand; right += 1) {
+        if (isValidSpec(actualOperation, level, left, right)) {
+          specs.push({
+            key: `${actualOperation}:${level}:${left}:${right}`,
+            operation: actualOperation,
+            level,
+            left,
+            right
+          });
+        }
+      }
+    }
+  }
+
+  return specs;
+}
+
+export function createQuestionFromSpec(spec, rng = Math.random) {
+  const { operation, level, left, right } = spec;
+  validateConfiguration(operation, level);
+  if (operation === "mixed") {
+    throw new Error("A question spec must use one concrete operation");
+  }
+  if (![left, right].every(Number.isInteger) || !isValidSpec(operation, level, left, right)) {
+    throw new Error("Question spec does not match its selected level");
+  }
+
+  const answer = operation === "addition" ? left + right : left - right;
+  const symbol = OPERATIONS[operation].symbol;
+  const levelConfig = LEVELS[level];
+
+  return {
+    id: `${Date.now()}-${Math.floor(rng() * 1_000_000)}`,
+    poolKey: spec.key ?? `${operation}:${level}:${left}:${right}`,
+    operation,
+    level,
+    left,
+    right,
+    symbol,
+    answer,
+    prompt: `${left} ${symbol} ${right}`,
+    choices: createDistractors({
+      left,
+      right,
+      answer,
+      operation,
+      maxAnswer: levelConfig.maxAnswer
+    }, rng),
+    hintType: levelConfig.hintType
+  };
+}
+
+export function generateQuestion({ operation = "addition", level = "within10", rng = Math.random } = {}) {
+  validateConfiguration(operation, level);
 
   const actualOperation = pickOperation(operation, rng);
   let operands;
@@ -169,29 +256,12 @@ export function generateQuestion({ operation = "addition", level = "within10", r
       throw new Error(`Unsupported level: ${level}`);
   }
 
-  const answer = actualOperation === "addition"
-    ? operands.left + operands.right
-    : operands.left - operands.right;
-  const symbol = OPERATIONS[actualOperation].symbol;
-  const levelConfig = LEVELS[level];
-
-  return {
-    id: `${Date.now()}-${Math.floor(rng() * 1_000_000)}`,
+  return createQuestionFromSpec({
+    key: `${actualOperation}:${level}:${operands.left}:${operands.right}`,
     operation: actualOperation,
     level,
-    left: operands.left,
-    right: operands.right,
-    symbol,
-    answer,
-    prompt: `${operands.left} ${symbol} ${operands.right}`,
-    choices: createDistractors({
-      ...operands,
-      answer,
-      operation: actualOperation,
-      maxAnswer: levelConfig.maxAnswer
-    }, rng),
-    hintType: levelConfig.hintType
-  };
+    ...operands
+  }, rng);
 }
 
 export function describeSkill(operation, level) {
